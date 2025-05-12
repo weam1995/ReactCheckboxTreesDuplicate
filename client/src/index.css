@@ -56,3 +56,66 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* Custom tree styling */
+.tree-node-container {
+  position: relative;
+}
+
+.tree-node-container:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.tree-children {
+  position: relative;
+}
+
+/* Line connecting parent to children */
+.tree-children::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10px;
+  height: 100%;
+  width: 1px;
+  background-color: #e5e7eb;
+}
+
+/* Line connecting siblings */
+.tree-node-container:not(:last-child) {
+  position: relative;
+}
+
+/* Active node highlight */
+.tree-node-container.active {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* Different styling for levels */
+.department-node, .server-type-node, .db-type-node {
+  font-weight: 600;
+}
+
+.account-type-node, .access-level-node, .access-type-node {
+  font-weight: 500;
+}
+
+.access-node, .server-node, .instance-node {
+  font-weight: 400;
+}
+
+/* Styling for disabled nodes */
+.text-disabled {
+  color: #9ca3af;
+}
+
+/* Tooltip styling */
+[title] {
+  position: relative;
+  cursor: help;
+}
+
+/* Tree container spacing */
+.tree-container {
+  margin-bottom: 12px;
+}

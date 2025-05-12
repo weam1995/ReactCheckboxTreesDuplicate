@@ -3,7 +3,7 @@ import { TreeNode } from "@/types";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleNode } from "@/store/slices/treeSlice";
 import { Checkbox } from "@/components/ui/checkbox";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, ChevronRight, ChevronDown } from "lucide-react";
 
 interface CheckboxTreeProps {
   nodeId: string;
@@ -17,6 +17,7 @@ export const CheckboxTree: React.FC<CheckboxTreeProps> = ({
   const dispatch = useAppDispatch();
   const node = useAppSelector(state => state.tree.allNodes[nodeId]);
   const searchTerm = useAppSelector(state => state.tree.searchTerm);
+  const [expanded, setExpanded] = React.useState(true);
   
   if (!node) return null;
   
@@ -24,69 +25,78 @@ export const CheckboxTree: React.FC<CheckboxTreeProps> = ({
     dispatch(toggleNode({ nodeId, checked }));
   };
   
+  const toggleExpand = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpanded(!expanded);
+  };
+  
   // Apply different styles based on level
   const getLevelClasses = () => {
     switch (node.level) {
       case 1:
-        return "text-base font-medium mb-4";
+        return "text-base font-medium";
       case 2:
-        return "mb-2";
+        return "text-sm";
       case 3:
-        return "mb-1";
+        return "text-sm";
       default:
         return "";
     }
-  };
-  
-  // Determine margin-left based on level
-  const getMarginLeft = () => {
-    return node.level > 1 ? "ml-6 mt-1" : "";
   };
   
   // Show info icon on disabled leaf nodes
   const isLeafNode = !node.children || node.children.length === 0;
   const showInfoIcon = node.disabled && isLeafNode;
+  const hasChildren = node.children && node.children.length > 0;
   
-  // Determine class for container based on node level and type
-  const getContainerClass = () => {
-    switch (node.level) {
-      case 1:
-        return "department-node server-type-node db-type-node " + getLevelClasses();
-      case 2:
-        return "account-type-node access-level-node access-type-node " + getLevelClasses();
-      case 3:
-        return "access-node server-node instance-node " + getLevelClasses();
-      default:
-        return "";
-    }
+  // Get left padding for alignment
+  const getPaddingLeft = () => {
+    return node.level === 1 ? "pl-0" : node.level === 2 ? "pl-6" : "pl-10";
   };
   
   return (
-    <div className={getContainerClass()}>
-      <div className="flex items-center py-1">
+    <div className="tree-node-container">
+      <div 
+        className={`flex items-center py-1.5 w-full hover:bg-gray-50 ${getPaddingLeft()} ${node.level === 1 ? 'mt-2' : ''}`}
+      >
+        {hasChildren && (
+          <span 
+            className="mr-1 cursor-pointer text-gray-500 flex items-center justify-center w-5 h-5" 
+            onClick={toggleExpand}
+          >
+            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </span>
+        )}
+        {!hasChildren && <span className="w-5 mr-1"></span>}
+        
         <Checkbox
           id={node.id}
           checked={node.checked}
           disabled={node.disabled}
           onCheckedChange={handleChange}
-          className={`h-5 w-5 ${node.disabled ? "text-disabled cursor-not-allowed" : "text-primary"} rounded border-gray-300 focus:ring-primary`}
+          className={`h-4 w-4 ${node.disabled ? "text-gray-300 cursor-not-allowed" : "text-primary"} rounded border-gray-300 focus:ring-primary`}
         />
         <label 
           htmlFor={node.id} 
-          className={`ml-2 ${node.disabled ? "text-disabled cursor-not-allowed" : "cursor-pointer"}`}
+          className={`ml-2 ${node.disabled ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"} ${getLevelClasses()}`}
         >
           {node.label}
         </label>
         {showInfoIcon && (
-          <InfoIcon 
-            className="ml-2 text-accent cursor-help h-4 w-4" 
-            title={getInfoMessage(node.id)}
-          />
+          <div className="relative group">
+            <InfoIcon 
+              className="ml-2 text-blue-500 cursor-help h-4 w-4" 
+            />
+            <span className="hidden group-hover:block absolute z-10 bg-gray-800 text-white text-xs rounded py-1 px-2 -mt-1 ml-6 min-w-[180px]">
+              {getInfoMessage(node.id)}
+            </span>
+          </div>
         )}
       </div>
       
-      {node.children && node.children.length > 0 && (
-        <div className={getMarginLeft()}>
+      {hasChildren && expanded && (
+        <div className={`tree-children ${node.level >= 3 ? 'pl-4' : ''}`}>
           {node.children.map(childId => (
             <CheckboxTree 
               key={childId} 
