@@ -151,59 +151,64 @@ export const filterTree = (
   if (!searchTerm) return nodes;
   
   const searchTermLower = searchTerm.toLowerCase();
-  const matchingNodeIds = new Set<string>();
-  const directMatchIds = new Set<string>();
+  
+  // Track matching nodes and their parent paths
+  const directMatchIds = new Set<string>();  // Nodes that directly match the search text
+  const pathNodeIds = new Set<string>();     // Parent nodes needed to show the path
   
   // Find nodes that directly match the search term
   Object.values(allNodes).forEach(node => {
     if (node.label.toLowerCase().includes(searchTermLower)) {
       // This is a directly matching node
       directMatchIds.add(node.id);
-      matchingNodeIds.add(node.id);
       
-      // Add all parents to make sure the path to the node is visible
+      // Add parent path nodes for navigation context
       let currentNode = node;
       while (currentNode.parent) {
-        matchingNodeIds.add(currentNode.parent);
+        pathNodeIds.add(currentNode.parent);
         currentNode = allNodes[currentNode.parent];
       }
     }
   });
   
-  // Clone the tree but filter out nodes that don't match
+  // If no matches found, return empty tree
+  if (directMatchIds.size === 0) {
+    return [];
+  }
+  
+  // Create a filtered tree with just matching nodes and their parent paths
   const filterNode = (node: TreeNode): TreeNode | null => {
-    if (matchingNodeIds.has(node.id)) {
-      // This node is either a match or in the path to a match
-      let shouldKeepNode = directMatchIds.has(node.id);
+    // If this is a path node (parent of a match) but not itself a match
+    const isPathNode = pathNodeIds.has(node.id);
+    // If this node directly matches the search term
+    const isMatchNode = directMatchIds.has(node.id);
+    
+    // If neither a path node nor a match, skip this branch
+    if (!isPathNode && !isMatchNode) {
+      return null;
+    }
+    
+    // For path nodes, only include children that are either matches or part of a path to matches
+    if (node.children && node.children.length > 0) {
+      const filteredChildren = node.children
+        .filter(childId => directMatchIds.has(childId) || pathNodeIds.has(childId))
+        .map(childId => {
+          const childNode = filterNode(allNodes[childId]);
+          return childNode ? childId : null;
+        })
+        .filter(Boolean) as string[];
       
-      if (node.children) {
-        // Check if any children are in the path
-        const filteredChildren = node.children
-          .map(childId => {
-            const child = allNodes[childId];
-            return child ? filterNode(child) : null;
-          })
-          .filter(Boolean)
-          .map(child => child!.id);
-        
-        // If we have matching children, we should keep this node
-        if (filteredChildren.length > 0) {
-          shouldKeepNode = true;
-          
-          return {
-            ...node,
-            children: filteredChildren
-          };
-        }
-      }
-      
-      // If this node is directly matched or has matching children, keep it
-      if (shouldKeepNode) {
+      // Only include this node if it has matching children or is itself a match
+      if (filteredChildren.length > 0 || isMatchNode) {
         return {
           ...node,
-          children: node.children ? node.children.filter(childId => matchingNodeIds.has(childId)) : undefined
+          children: filteredChildren.length > 0 ? filteredChildren : undefined
         };
       }
+    } 
+    // If this is a leaf node that matches the search
+    else if (isMatchNode) {
+      return node;
     }
     
     return null;

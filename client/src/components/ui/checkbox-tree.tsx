@@ -55,10 +55,42 @@ export const CheckboxTree: React.FC<CheckboxTreeProps> = ({
     return node.level === 1 ? "pl-0" : node.level === 2 ? "pl-6" : "pl-10";
   };
   
+  // Highlight text that matches search term
+  const highlightMatchedText = (text: string) => {
+    if (!searchTerm) return text;
+    
+    const searchTermLower = searchTerm.toLowerCase();
+    const textLower = text.toLowerCase();
+    
+    // Check if this text contains the search term
+    if (textLower.includes(searchTermLower)) {
+      const startIndex = textLower.indexOf(searchTermLower);
+      const endIndex = startIndex + searchTermLower.length;
+      
+      const before = text.substring(0, startIndex);
+      const match = text.substring(startIndex, endIndex);
+      const after = text.substring(endIndex);
+      
+      return (
+        <>
+          {before}
+          <span className="bg-yellow-200 font-medium text-gray-900">{match}</span>
+          {after}
+        </>
+      );
+    }
+    
+    return text;
+  };
+  
+  // Determine if this node directly matches the search term
+  const isSearchMatch = searchTerm ? 
+    node.label.toLowerCase().includes(searchTerm.toLowerCase()) : false;
+  
   return (
     <div className="tree-node-container">
       <div 
-        className={`flex items-center py-1.5 w-full hover:bg-gray-50 ${getPaddingLeft()} ${node.level === 1 ? 'mt-2' : ''}`}
+        className={`flex items-center py-1.5 w-full hover:bg-gray-50 ${isSearchMatch ? 'bg-gray-50' : ''} ${getPaddingLeft()} ${node.level === 1 ? 'mt-2' : ''}`}
       >
         {hasChildren && (
           <span 
@@ -82,7 +114,7 @@ export const CheckboxTree: React.FC<CheckboxTreeProps> = ({
           htmlFor={node.id} 
           className={`ml-2 ${node.disabled ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"} ${getLevelClasses()}`}
         >
-          {node.label}
+          {highlightMatchedText(node.label)}
         </label>
         {showInfoIcon && (
           <div className="relative group">
