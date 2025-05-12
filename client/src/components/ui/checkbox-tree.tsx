@@ -98,7 +98,7 @@ export const CheckboxTree: React.FC<CheckboxTreeProps> = ({
       
       {hasChildren && expanded && node.children && (
         <div className={`tree-children ${node.level >= 3 ? 'pl-4' : ''}`}>
-          {node.children.map((childId: string) => (
+          {node.children.map(childId => (
             <CheckboxTree 
               key={childId} 
               nodeId={childId} 

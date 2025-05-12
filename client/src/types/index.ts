@@ -4,7 +4,7 @@ export interface TreeNode {
   checked: boolean;
   indeterminate?: boolean;
   disabled: boolean;
-  children?: TreeNode[];
+  children?: string[];
   path?: string[];
   parent?: string;
   level: number;

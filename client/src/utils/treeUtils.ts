@@ -152,10 +152,13 @@ export const filterTree = (
   
   const searchTermLower = searchTerm.toLowerCase();
   const matchingNodeIds = new Set<string>();
+  const directMatchIds = new Set<string>();
   
-  // Find nodes that match the search term
+  // Find nodes that directly match the search term
   Object.values(allNodes).forEach(node => {
     if (node.label.toLowerCase().includes(searchTermLower)) {
+      // This is a directly matching node
+      directMatchIds.add(node.id);
       matchingNodeIds.add(node.id);
       
       // Add all parents to make sure the path to the node is visible
@@ -164,28 +167,17 @@ export const filterTree = (
         matchingNodeIds.add(currentNode.parent);
         currentNode = allNodes[currentNode.parent];
       }
-      
-      // Add all children
-      if (node.children) {
-        const queue = [...node.children];
-        while (queue.length > 0) {
-          const childId = queue.shift();
-          if (!childId) continue;
-          
-          matchingNodeIds.add(childId);
-          const child = allNodes[childId];
-          if (child && child.children) {
-            queue.push(...child.children);
-          }
-        }
-      }
     }
   });
   
   // Clone the tree but filter out nodes that don't match
   const filterNode = (node: TreeNode): TreeNode | null => {
     if (matchingNodeIds.has(node.id)) {
+      // This node is either a match or in the path to a match
+      let shouldKeepNode = directMatchIds.has(node.id);
+      
       if (node.children) {
+        // Check if any children are in the path
         const filteredChildren = node.children
           .map(childId => {
             const child = allNodes[childId];
@@ -194,13 +186,26 @@ export const filterTree = (
           .filter(Boolean)
           .map(child => child!.id);
         
+        // If we have matching children, we should keep this node
+        if (filteredChildren.length > 0) {
+          shouldKeepNode = true;
+          
+          return {
+            ...node,
+            children: filteredChildren
+          };
+        }
+      }
+      
+      // If this node is directly matched or has matching children, keep it
+      if (shouldKeepNode) {
         return {
           ...node,
-          children: filteredChildren
+          children: node.children ? node.children.filter(childId => matchingNodeIds.has(childId)) : undefined
         };
       }
-      return node;
     }
+    
     return null;
   };
   
