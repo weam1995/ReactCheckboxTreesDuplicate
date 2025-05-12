@@ -141,7 +141,7 @@ export const getCheckedLeafNodes = (
 };
 
 /**
- * Filter tree based on search term - extremely simple fixed path approach
+ * Filter tree based on search term - extremely simple direct path approach
  */
 export const filterTree = (
   nodes: TreeNode[],
@@ -153,71 +153,90 @@ export const filterTree = (
   // Convert search term to lowercase for case-insensitive matching
   const searchTermLower = searchTerm.toLowerCase();
   
-  // Step 1: Find all nodes that match the search term
-  const matchingNodes: TreeNode[] = [];
-  
-  Object.values(allNodes).forEach(node => {
-    if (node.label.toLowerCase().includes(searchTermLower)) {
-      matchingNodes.push(node);
+  // Step 1: Find matching nodes
+  const matchingNodeIds: string[] = [];
+  Object.keys(allNodes).forEach(id => {
+    if (allNodes[id].label.toLowerCase().includes(searchTermLower)) {
+      matchingNodeIds.push(id);
     }
   });
   
   // If no matches, return empty array
-  if (matchingNodes.length === 0) {
+  if (matchingNodeIds.length === 0) {
     return [];
   }
   
-  // Step 2: Create a new set of nodes with only the exact paths to matches
-  const filteredCopyOfOriginalNodes: TreeNode[] = [];
+  // Step 2: Create direct paths from each matching node to root
+  const pathMap: { [rootId: string]: Set<string> } = {};
   
-  // Process each matching node
-  matchingNodes.forEach(matchNode => {
-    // Create a path from this node up to the root
-    const pathIds: string[] = [matchNode.id];
-    let currentId = matchNode.id;
+  // For each matching node, trace path to root
+  matchingNodeIds.forEach(matchId => {
+    // Trace path up to root
+    const path: string[] = [matchId];
+    let currentNodeId = matchId;
     
-    // Walk up the tree adding all ancestors
-    while (allNodes[currentId].parent) {
-      currentId = allNodes[currentId].parent!;
-      pathIds.unshift(currentId);
+    // Walk up to root
+    while (allNodes[currentNodeId]?.parent) {
+      const parentId = allNodes[currentNodeId].parent!;
+      path.unshift(parentId);
+      currentNodeId = parentId;
     }
     
-    // Find or create the root in our filtered copy
-    const rootId = pathIds[0];
-    let rootInFilter = filteredCopyOfOriginalNodes.find(n => n.id === rootId);
+    // Root node is first in path
+    const rootId = path[0];
     
-    if (!rootInFilter) {
-      // Create a copy of the root with empty children array
-      rootInFilter = {
-        ...allNodes[rootId],
-        children: []
-      };
-      filteredCopyOfOriginalNodes.push(rootInFilter);
+    // Initialize path map for this root if needed
+    if (!pathMap[rootId]) {
+      pathMap[rootId] = new Set<string>();
     }
     
-    // Now create the exact path down to this matching node
-    let parentNode = rootInFilter;
-    
-    // For each level beneath the root, create or update the node
-    for (let i = 1; i < pathIds.length; i++) {
-      const currentPathId = pathIds[i];
-      const originalNode = allNodes[currentPathId];
-      
-      // Check if the parent already has this node as a child
-      if (!parentNode.children!.includes(currentPathId)) {
-        parentNode.children!.push(currentPathId);
-      }
-      
-      // If this is not the last node in the path, prepare for next iteration
-      if (i < pathIds.length - 1) {
-        // Set up the next parent for iteration
-        if (allNodes[currentPathId].children) {
-          // Update parent to this node for next iteration
-          parentNode = allNodes[parentNode.children![parentNode.children!.length - 1]]; 
-        }
-      }
-    }
+    // Add all nodes in path to this root's set
+    path.forEach(id => {
+      pathMap[rootId].add(id);
+    });
   });
   
-  return filteredCopyOfOriginalNodes;
+  // Step 3: Create the filtered trees
+  return nodes
+    .map(rootNode => {
+      // Skip roots that don't lead to matches
+      if (!pathMap[rootNode.id]) {
+        return null;
+      }
+      
+      // Create filtered version of root
+      const newRoot: TreeNode = {
+        ...rootNode,
+        children: undefined
+      };
+      
+      // Get IDs of visible nodes for this root
+      const visibleIds = pathMap[rootNode.id];
+      
+      // Helper to create filtered tree
+      const createFilteredNode = (nodeId: string): TreeNode => {
+        const node = allNodes[nodeId];
+        
+        // Create a filtered children list only with nodes in our path
+        const filteredChildren = node.children 
+          ? node.children.filter(childId => visibleIds.has(childId))
+          : undefined;
+        
+        // Return a node copy with filtered children
+        return {
+          ...node,
+          children: filteredChildren && filteredChildren.length > 0 
+            ? filteredChildren 
+            : undefined
+        };
+      };
+      
+      // Build the filtered tree starting from root
+      const buildFilteredTree = (nodeId: string): TreeNode => {
+        return createFilteredNode(nodeId);
+      };
+      
+      return buildFilteredTree(rootNode.id);
+    })
+    .filter(Boolean) as TreeNode[];
 };
