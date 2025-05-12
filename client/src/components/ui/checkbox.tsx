@@ -12,12 +12,27 @@ const Checkbox = React.forwardRef<
   React.ElementRef<typeof CheckboxPrimitive.Root>,
   CheckboxProps
 >(({ className, indeterminate = false, ...props }, ref) => {
+  // Use a ref to control the indeterminate DOM property
+  const innerRef = React.useRef<HTMLButtonElement>(null);
+  
+  // Handle combined refs
+  React.useImperativeHandle(ref, () => innerRef.current!);
+  
+  // Update the DOM element when indeterminate changes
+  React.useEffect(() => {
+    if (innerRef.current) {
+      // This helps with native HTML indeterminate property if needed
+      // Note: Radix doesn't expose this directly, but we're adding for completeness
+      (innerRef.current as any).indeterminate = indeterminate;
+    }
+  }, [indeterminate]);
+  
   return (
     <CheckboxPrimitive.Root
-      ref={ref}
+      ref={innerRef}
       className={cn(
         "peer h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
-        indeterminate && "bg-primary text-primary-foreground",
+        indeterminate && "bg-blue-500 text-white", // Use a distinct color for indeterminate state
         className
       )}
       {...props}

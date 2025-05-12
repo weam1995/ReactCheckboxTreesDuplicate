@@ -67,25 +67,38 @@ export const updateParents = (
     // Count non-disabled children
     const nonDisabledChildren = childNodes.filter(child => !child.disabled);
     
-    // Check if all non-disabled children are checked
-    const allNonDisabledChildrenChecked = nonDisabledChildren.length > 0 && 
-      nonDisabledChildren.every(child => child.checked);
-    
-    // Check if all non-disabled children are unchecked
-    const allNonDisabledChildrenUnchecked = nonDisabledChildren.length > 0 && 
-      nonDisabledChildren.every(child => !child.checked);
-    
-    // Check if some but not all non-disabled children are checked (indeterminate state)
-    const someNonDisabledChildrenChecked = nonDisabledChildren.length > 0 &&
-      nonDisabledChildren.some(child => child.checked || child.indeterminate) &&
-      !allNonDisabledChildrenChecked && !allNonDisabledChildrenUnchecked;
-    
-    updatedNodes[parentId] = {
-      ...parent,
-      disabled: allChildrenDisabled,
-      checked: allNonDisabledChildrenChecked,
-      indeterminate: someNonDisabledChildrenChecked
-    };
+    if (nonDisabledChildren.length === 0) {
+      // If no enabled children, parent should match disabled children's state
+      const allChildrenChecked = childNodes.length > 0 && 
+        childNodes.every(child => child.checked);
+      
+      updatedNodes[parentId] = {
+        ...parent,
+        disabled: allChildrenDisabled,
+        checked: allChildrenChecked,
+        indeterminate: false
+      };
+    } else {
+      // Check children that aren't disabled
+      const checkedChildren = nonDisabledChildren.filter(child => child.checked);
+      const indeterminateChildren = nonDisabledChildren.filter(child => child.indeterminate);
+      
+      // All enabled children are checked
+      const allChecked = checkedChildren.length === nonDisabledChildren.length;
+      
+      // All enabled children are unchecked
+      const allUnchecked = checkedChildren.length === 0 && indeterminateChildren.length === 0;
+      
+      // Some children are checked or indeterminate, but not all (partial state)
+      const partialState = !allChecked && !allUnchecked;
+      
+      updatedNodes[parentId] = {
+        ...parent,
+        disabled: allChildrenDisabled,
+        checked: allChecked,
+        indeterminate: partialState
+      };
+    }
     
     // Move up to the next parent
     currentNodeId = parentId;
