@@ -41,7 +41,7 @@ const Checkbox = React.forwardRef<
         className={cn("flex items-center justify-center text-current")}
       >
         {indeterminate ? (
-          <Minus className="h-3 w-3" />
+          <Minus className="h-3 w-3 text-white" />
         ) : (
           <Check className="h-4 w-4" />
         )}
