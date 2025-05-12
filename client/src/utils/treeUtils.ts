@@ -152,9 +152,9 @@ export const filterTree = (
   
   const searchTermLower = searchTerm.toLowerCase();
   
-  // Track matching nodes and their parent paths
+  // Track matching nodes and create their ancestor paths
   const directMatchIds = new Set<string>();  // Nodes that directly match the search text
-  const pathNodeIds = new Set<string>();     // Parent nodes needed to show the path
+  const ancestorPaths = new Map<string, string[]>();  // Map of match ID to its ancestor IDs
   
   // Find nodes that directly match the search term
   Object.values(allNodes).forEach(node => {
@@ -162,12 +162,17 @@ export const filterTree = (
       // This is a directly matching node
       directMatchIds.add(node.id);
       
-      // Add parent path nodes for navigation context
+      // Build path of ancestors (but not siblings) for this match
+      const ancestors: string[] = [];
       let currentNode = node;
+      
       while (currentNode.parent) {
-        pathNodeIds.add(currentNode.parent);
-        currentNode = allNodes[currentNode.parent];
+        const parentId = currentNode.parent;
+        ancestors.push(parentId);
+        currentNode = allNodes[parentId];
       }
+      
+      ancestorPaths.set(node.id, ancestors);
     }
   });
   
@@ -176,30 +181,58 @@ export const filterTree = (
     return [];
   }
   
-  // Create a filtered tree with just matching nodes and their parent paths
+  // Collect all ancestor IDs for displaying paths
+  const allAncestorIds = new Set<string>();
+  ancestorPaths.forEach(ancestors => {
+    ancestors.forEach(ancestorId => {
+      allAncestorIds.add(ancestorId);
+    });
+  });
+  
+  // Create a filtered tree with just matching nodes and their direct ancestors
   const filterNode = (node: TreeNode): TreeNode | null => {
-    // If this is a path node (parent of a match) but not itself a match
-    const isPathNode = pathNodeIds.has(node.id);
-    // If this node directly matches the search term
-    const isMatchNode = directMatchIds.has(node.id);
+    const isDirectMatch = directMatchIds.has(node.id);
+    const isAncestor = allAncestorIds.has(node.id);
     
-    // If neither a path node nor a match, skip this branch
-    if (!isPathNode && !isMatchNode) {
+    // If not a match or an ancestor, skip this branch entirely
+    if (!isDirectMatch && !isAncestor) {
       return null;
     }
     
-    // For path nodes, only include children that are either matches or part of a path to matches
     if (node.children && node.children.length > 0) {
-      const filteredChildren = node.children
-        .filter(childId => directMatchIds.has(childId) || pathNodeIds.has(childId))
+      // We'll only keep children that are either:
+      // 1. Direct matches themselves
+      // 2. Ancestors of any match (part of the path to a match)
+      const validChildIds = new Set<string>();
+      
+      // First, add any direct matching children
+      node.children.forEach(childId => {
+        if (directMatchIds.has(childId)) {
+          validChildIds.add(childId);
+        }
+      });
+      
+      // Next, for any matching descendants, add their ancestor that is a direct child of this node
+      directMatchIds.forEach(matchId => {
+        const matchAncestors = ancestorPaths.get(matchId) || [];
+        // Find if any of this node's children are in the ancestors path
+        matchAncestors.forEach(ancestorId => {
+          if (node.children?.includes(ancestorId)) {
+            validChildIds.add(ancestorId);
+          }
+        });
+      });
+      
+      // Filter and map valid children
+      const filteredChildren = Array.from(validChildIds)
         .map(childId => {
           const childNode = filterNode(allNodes[childId]);
           return childNode ? childId : null;
         })
         .filter(Boolean) as string[];
       
-      // Only include this node if it has matching children or is itself a match
-      if (filteredChildren.length > 0 || isMatchNode) {
+      // If we have valid children or this node is a direct match, keep it
+      if (filteredChildren.length > 0 || isDirectMatch) {
         return {
           ...node,
           children: filteredChildren.length > 0 ? filteredChildren : undefined
@@ -207,7 +240,7 @@ export const filterTree = (
       }
     } 
     // If this is a leaf node that matches the search
-    else if (isMatchNode) {
+    else if (isDirectMatch) {
       return node;
     }
     
