@@ -75,10 +75,16 @@ export const updateParents = (
     const allNonDisabledChildrenUnchecked = nonDisabledChildren.length > 0 && 
       nonDisabledChildren.every(child => !child.checked);
     
+    // Check if some but not all non-disabled children are checked (indeterminate state)
+    const someNonDisabledChildrenChecked = nonDisabledChildren.length > 0 &&
+      nonDisabledChildren.some(child => child.checked || child.indeterminate) &&
+      !allNonDisabledChildrenChecked && !allNonDisabledChildrenUnchecked;
+    
     updatedNodes[parentId] = {
       ...parent,
       disabled: allChildrenDisabled,
-      checked: allNonDisabledChildrenChecked
+      checked: allNonDisabledChildrenChecked,
+      indeterminate: someNonDisabledChildrenChecked
     };
     
     // Move up to the next parent

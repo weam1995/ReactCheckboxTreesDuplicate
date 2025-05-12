@@ -74,6 +74,7 @@ export const CheckboxTree: React.FC<CheckboxTreeProps> = ({
           id={node.id}
           checked={node.checked}
           disabled={node.disabled}
+          indeterminate={!!node.indeterminate}
           onCheckedChange={handleChange}
           className={`h-4 w-4 ${node.disabled ? "text-gray-300 cursor-not-allowed" : "text-primary"} rounded border-gray-300 focus:ring-primary`}
         />
@@ -95,9 +96,9 @@ export const CheckboxTree: React.FC<CheckboxTreeProps> = ({
         )}
       </div>
       
-      {hasChildren && expanded && (
+      {hasChildren && expanded && node.children && (
         <div className={`tree-children ${node.level >= 3 ? 'pl-4' : ''}`}>
-          {node.children.map(childId => (
+          {node.children.map((childId: string) => (
             <CheckboxTree 
               key={childId} 
               nodeId={childId} 
