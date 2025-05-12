@@ -141,7 +141,7 @@ export const getCheckedLeafNodes = (
 };
 
 /**
- * Filter tree based on search term
+ * Filter tree based on search term - extremely simple fixed path approach
  */
 export const filterTree = (
   nodes: TreeNode[],
@@ -150,99 +150,74 @@ export const filterTree = (
 ): TreeNode[] => {
   if (!searchTerm) return nodes;
   
+  // Convert search term to lowercase for case-insensitive matching
   const searchTermLower = searchTerm.toLowerCase();
   
-  // Find exact matching nodes
-  const matchingNodes: string[] = [];
-  for (const id in allNodes) {
-    if (allNodes[id].label.toLowerCase().includes(searchTermLower)) {
-      matchingNodes.push(id);
-    }
-  }
+  // Step 1: Find all nodes that match the search term
+  const matchingNodes: TreeNode[] = [];
   
+  Object.values(allNodes).forEach(node => {
+    if (node.label.toLowerCase().includes(searchTermLower)) {
+      matchingNodes.push(node);
+    }
+  });
+  
+  // If no matches, return empty array
   if (matchingNodes.length === 0) {
     return [];
   }
   
-  // Build paths from root to each matching node
-  const pathsToMatches: Record<string, string[]> = {};
-  matchingNodes.forEach(matchId => {
-    // Start with the matching node
-    let path: string[] = [matchId];
-    let currentNodeId = matchId;
+  // Step 2: Create a new set of nodes with only the exact paths to matches
+  const filteredCopyOfOriginalNodes: TreeNode[] = [];
+  
+  // Process each matching node
+  matchingNodes.forEach(matchNode => {
+    // Create a path from this node up to the root
+    const pathIds: string[] = [matchNode.id];
+    let currentId = matchNode.id;
     
-    // Walk up the tree to find all ancestors
-    while (allNodes[currentNodeId]?.parent) {
-      const parentId = allNodes[currentNodeId].parent!;
-      path.unshift(parentId);
-      currentNodeId = parentId;
+    // Walk up the tree adding all ancestors
+    while (allNodes[currentId].parent) {
+      currentId = allNodes[currentId].parent!;
+      pathIds.unshift(currentId);
     }
     
-    pathsToMatches[matchId] = path;
-  });
-  
-  // Create a filtered copy of the tree that only shows paths to matches
-  const result: TreeNode[] = [];
-  
-  // Process the root nodes for matches
-  nodes.forEach(rootNode => {
-    // Check if any matching paths start with this root
-    const matchPathsFromThisRoot = matchingNodes
-      .filter(matchId => pathsToMatches[matchId][0] === rootNode.id);
+    // Find or create the root in our filtered copy
+    const rootId = pathIds[0];
+    let rootInFilter = filteredCopyOfOriginalNodes.find(n => n.id === rootId);
     
-    if (matchPathsFromThisRoot.length === 0) {
-      return; // No matches from this root
+    if (!rootInFilter) {
+      // Create a copy of the root with empty children array
+      rootInFilter = {
+        ...allNodes[rootId],
+        children: []
+      };
+      filteredCopyOfOriginalNodes.push(rootInFilter);
     }
     
-    // Create a filtered tree starting from this root
-    const newRoot = { ...rootNode, children: [] };
+    // Now create the exact path down to this matching node
+    let parentNode = rootInFilter;
     
-    // For each matching path from this root
-    matchPathsFromThisRoot.forEach(matchId => {
-      const path = pathsToMatches[matchId];
+    // For each level beneath the root, create or update the node
+    for (let i = 1; i < pathIds.length; i++) {
+      const currentPathId = pathIds[i];
+      const originalNode = allNodes[currentPathId];
       
-      // Start at the root level
-      let currentNode = newRoot;
+      // Check if the parent already has this node as a child
+      if (!parentNode.children!.includes(currentPathId)) {
+        parentNode.children!.push(currentPathId);
+      }
       
-      // Build the path from root to match
-      for (let i = 1; i < path.length; i++) {
-        const childId = path[i];
-        
-        // Check if this child is already in the filtered tree
-        let childExists = false;
-        let childIndex = -1;
-        
-        if (currentNode.children) {
-          for (let j = 0; j < currentNode.children.length; j++) {
-            if (currentNode.children[j] === childId) {
-              childExists = true;
-              childIndex = j;
-              break;
-            }
-          }
-        } else {
-          currentNode.children = [];
-        }
-        
-        // Add child if it doesn't exist
-        if (!childExists) {
-          currentNode.children.push(childId);
-        }
-        
-        // Move to the next node in the path
-        if (i < path.length - 1) {
-          // Update current node to this child (create if needed)
-          const childNodeId = path[i + 1];
-          const originalChild = allNodes[childId];
-          
-          // The next node becomes current node for next iteration
-          currentNode = originalChild;
+      // If this is not the last node in the path, prepare for next iteration
+      if (i < pathIds.length - 1) {
+        // Set up the next parent for iteration
+        if (allNodes[currentPathId].children) {
+          // Update parent to this node for next iteration
+          parentNode = allNodes[parentNode.children![parentNode.children!.length - 1]]; 
         }
       }
-    });
-    
-    result.push(newRoot);
+    }
   });
   
-  return result;
+  return filteredCopyOfOriginalNodes;
 };
