@@ -1,0 +1,73 @@
+import React, { useEffect, useState } from 'react';
+
+interface ManualPasswordState {
+  password: string;
+}
+
+interface SingleSignOnNavigationState {
+  enableNext: boolean;
+  manualPasswordState: ManualPasswordState;
+}
+
+interface ProcessNavigationComponentState {
+  stepList: string[];
+  active: number;
+  completed: number[];
+  disabled: number[];
+  isOpen: { [key: string]: boolean };
+}
+
+type State = ProcessNavigationComponentState & SingleSignOnNavigationState;
+
+const SingleSignOnNavigation: React.FC = () => {
+  const [stepList] = useState<string[]>([
+    'Select Accounts',
+    'Affirmation',
+    'Set Password',
+    'Finish',
+  ]);
+
+  const [active, setActive] = useState<number>(0);
+  const [completed, setCompleted] = useState<number[]>([]);
+  const [disabled, setDisabled] = useState<number[]>([1, 2, 3]);
+  const [isOpen, setIsOpen] = useState<{ [key: string]: boolean }>({});
+  const [enableNext, setEnableNext] = useState<boolean>(false);
+  const [manualPasswordState, setManualPasswordState] = useState<ManualPasswordState>({
+    password: '',
+  });
+
+  // Optional: Initialize state or handle reset
+  useEffect(() => {
+    // This mimics setInitialState
+    setCompleted([]);
+    setDisabled(getDisabledList(0));
+    setEnableNext(false);
+    setManualPasswordState({ password: '' });
+  }, []);
+
+  const getDisabledList = (active: number): number[] => {
+    switch (active) {
+      case 0:
+        return [1, 2, 3];
+      case 1:
+        return [2, 3];
+      case 2:
+        return [3];
+      case 3:
+        return [0, 1, 2];
+      default:
+        return [1, 2, 3];
+    }
+  };
+
+  return (
+    <div>
+      {/* Render navigation, steps, etc. */}
+      <p>Current Step: {stepList[active]}</p>
+      <p>Enable Next: {enableNext ? 'Yes' : 'No'}</p>
+      <p>Password: {manualPasswordState.password}</p>
+    </div>
+  );
+};
+
+export default SingleSignOnNavigation;
