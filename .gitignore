@@ -4,3 +4,103 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+
+
+
+public class PasswordRotationExceptionHandlerMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly ILogger<PasswordRotationExceptionHandlerMiddleware> _logger;
+    private readonly IErrorLogRepository _errorLogRepository;
+
+    public PasswordRotationExceptionHandlerMiddleware(
+        RequestDelegate next,
+        ILogger<PasswordRotationExceptionHandlerMiddleware> logger,
+        IErrorLogRepository errorLogRepository)
+    {
+        _next = next;
+        _logger = logger;
+        _errorLogRepository = errorLogRepository;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        try
+        {
+            await _next(context);
+        }
+        catch (Exception ex) when (IsPasswordRotationEndpoint(context))
+        {
+            await HandlePasswordRotationExceptionAsync(context, ex);
+        }
+        catch
+        {
+            // Let other exceptions bubble up to other handlers
+            throw;
+        }
+    }
+
+    private bool IsPasswordRotationEndpoint(HttpContext context)
+    {
+        // Match password rotation endpoints (adjust as needed)
+        return context.Request.Path.StartsWithSegments("/api/password") ||
+               context.Request.Path.StartsWithSegments("/api/account/rotate");
+    }
+
+    private async Task HandlePasswordRotationExceptionAsync(HttpContext context, Exception exception)
+    {
+        // Password-rotation-specific exception handling
+        var (statusCode, responseMessage) = exception switch
+        {
+            InvalidOperationException => 
+                (StatusCodes.Status400BadRequest, "Password rotation failed: " + SanitizeMessage(exception.Message)),
+            
+            TimeoutException => 
+                (StatusCodes.Status504GatewayTimeout, "Password rotation timed out"),
+            
+            ArgumentException => 
+                (StatusCodes.Status400BadRequest, "Invalid password rotation request"),
+            
+            _ => (StatusCodes.Status500InternalServerError, 
+                "Password rotation service unavailable")
+        };
+
+        // Secure logging - never log actual passwords
+        await LogPasswordRotationErrorAsync(exception, context);
+
+        context.Response.ContentType = "text/plain";
+        context.Response.StatusCode = statusCode;
+        await context.Response.WriteAsync(responseMessage);
+    }
+
+    private async Task LogPasswordRotationErrorAsync(Exception exception, HttpContext context)
+    {
+        try
+        {
+            var errorLog = new ErrorLog
+            {
+                ExceptionType = exception.GetType().Name,
+                Message = SanitizeMessage(exception.Message), // Remove sensitive data
+                StackTrace = exception.StackTrace,
+                SourceService = "PasswordRotation",
+                AdditionalData = $"Endpoint: {context.Request.Path}, Method: {context.Request.Method}"
+            };
+
+            await _errorLogRepository.LogErrorAsync(errorLog);
+        }
+        catch (Exception loggingEx)
+        {
+            _logger.LogCritical(loggingEx, "Failed to log password rotation error");
+            _logger.LogError(exception, "Original password rotation error occurred");
+        }
+    }
+
+    private string SanitizeMessage(string message)
+    {
+        // Remove any potentially sensitive information from error messages
+        return message.Replace("password", "[REDACTED]")
+                     .Replace("pwd", "[REDACTED]")
+                     .Replace("secret", "[REDACTED]");
+    }
+}
