@@ -1,60 +1,35 @@
-import React, { useState, MouseEvent, useCallback } from 'react';
+public class ExceptionDispatcher
+{
+    private readonly IMediator _mediator;
 
-interface ProcessNavigationComponentProps {}
-
-interface ProcessNavigationState {
-  stepList: string[];
-  active: number;
-  completed: number[];
-  disabled: number[];
-  isOpen: { [key: string]: boolean };
-}
-
-const ProcessNavigationComponent: React.FC<ProcessNavigationComponentProps> = () => {
-  const [stepList, setStepList] = useState<string[]>([]);
-  const [active, setActive] = useState<number>(0);
-  const [completed, setCompleted] = useState<number[]>([]);
-  const [disabled, setDisabled] = useState<number[]>([]);
-  const [isOpen, setIsOpen] = useState<{ [key: string]: boolean }>({});
-
-  const calculateStates = useCallback((active: number) => {
-    const arr = stepList.map((_, index) => index);
-    const disabledArray = arr.slice(active + 1);
-    const completedArray = arr.slice(0, active);
-    return { completedArray, disabledArray };
-  }, [stepList]);
-
-  const moveStep = useCallback((id: string, direction: number) => {
-    if ((direction > 0 && active >= stepList.length - 1) || (direction < 0 && active <= 0)) {
-      return;
+    public ExceptionDispatcher(IMediator mediator)
+    {
+        _mediator = mediator;
     }
 
-    const newActive = active + direction;
+    public async Task<T> Run<T>(Func<Task<T>> action, string accountName, string platformName)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (Exception ex)
+        {
+            await _mediator.Publish(new ExceptionNotification(ex, accountName, platformName));
+            throw;
+        }
+    }
 
-    const { completedArray, disabledArray } = calculateStates(newActive);
-
-    setActive(newActive);
-    setCompleted(completedArray);
-    setDisabled(disabledArray);
-  }, [active, stepList.length, calculateStates]);
-
-  const nextStep = (event: MouseEvent<HTMLButtonElement>) => {
-    const id = event.currentTarget.id.split('-next')[0];
-    moveStep(id, 1);
-  };
-
-  const previousStep = (event: MouseEvent<HTMLButtonElement>) => {
-    const id = event.currentTarget.id.split('-prev')[0];
-    moveStep(id, -1);
-  };
-
-  return (
-    <div>
-      {/* Your actual rendering logic here */}
-      <button id="step-0-prev" onClick={previousStep}>Previous</button>
-      <button id="step-0-next" onClick={nextStep}>Next</button>
-    </div>
-  );
-};
-
-export default ProcessNavigationComponent;
+    public async Task Run(Func<Task> action, string accountName, string platformName)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            await _mediator.Publish(new ExceptionNotification(ex, accountName, platformName));
+            throw;
+        }
+    }
+}
