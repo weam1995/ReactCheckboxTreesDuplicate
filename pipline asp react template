@@ -1,0 +1,167 @@
+stages:
+  - restore
+  - build
+  - test
+  - publish
+  - deploy
+
+variables:
+  NODE_VERSION: "18"
+  DOTNET_VERSION: "6.0.x"
+  PNPM_VERSION: "8.6.5"  # Updated to latest stable
+  CUSTOM_REGISTRY: "https://your.custom.registry/"
+  ARTIFACTS_DIR: "artifacts"
+  DOCKER_IMAGE: "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA"
+  FF_NETWORK_PER_BUILD: "true"  # Better Docker networking
+
+# Separate caches for frontend/backend
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .pnpm-store/
+    - ClientApp/node_modules/
+    - .nuget/packages/
+  policy: pull-push  # Explicit cache policy
+
+before_script:
+  - export NODE_OPTIONS=--openssl-legacy-provider
+  - npm install -g pnpm@${PNPM_VERSION}
+  - pnpm config set store-dir .pnpm-store
+  - pnpm config set registry ${CUSTOM_REGISTRY}
+  - pnpm config set strict-peer-dependencies false
+
+# ------------------------- RESTORE STAGE -------------------------
+restore_frontend:
+  stage: restore
+  image: node:${NODE_VERSION}
+  script:
+    - cd ClientApp
+    - pnpm install --frozen-lockfile --prefer-offline
+    - cd ..
+  cache:
+    key: "frontend-$CI_COMMIT_REF_SLUG"
+    paths:
+      - ClientApp/node_modules/
+      - .pnpm-store/
+    policy: pull-push
+  artifacts:
+    paths:
+      - ClientApp/node_modules/
+    expire_in: 1h  # Short expiry for temp artifacts
+
+restore_backend:
+  stage: restore
+  image: mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}
+  script:
+    - dotnet restore --use-lock-file
+  cache:
+    key: "backend-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .nuget/packages/
+    policy: pull-push
+
+# ------------------------- BUILD STAGE -------------------------
+build_frontend:
+  stage: build
+  image: node:${NODE_VERSION}
+  script:
+    - cd ClientApp
+    - pnpm run build --no-cache
+    - cd ..
+  cache:
+    key: "frontend-$CI_COMMIT_REF_SLUG"
+    paths:
+      - ClientApp/node_modules/
+      - .pnpm-store/
+    policy: pull
+  artifacts:
+    paths:
+      - ClientApp/build/
+    expire_in: 1 week
+  needs: ["restore_frontend"]
+
+build_backend:
+  stage: build
+  image: mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}
+  script:
+    - dotnet build --configuration Release --no-restore -p:ContinuousIntegrationBuild=true
+  artifacts:
+    paths:
+      - bin/Release/
+    expire_in: 1 week
+  needs: ["restore_backend"]
+
+# ------------------------- TEST STAGE -------------------------
+test_frontend:
+  stage: test
+  image: node:${NODE_VERSION}
+  script:
+    - cd ClientApp
+    - pnpm test --ci --watchAll=false
+  needs: ["build_frontend"]
+  retry: 1  # Automatic retry on failure
+
+test_backend:
+  stage: test
+  image: mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}
+  script:
+    - dotnet test --no-build --verbosity normal
+  needs: ["build_backend"]
+  retry: 1
+
+# ------------------------- PUBLISH STAGE -------------------------
+publish_combined:
+  stage: publish
+  image: mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}
+  script:
+    - mkdir -p ${ARTIFACTS_DIR}
+    - dotnet publish --configuration Release --output ${ARTIFACTS_DIR} --no-build
+    - cp -r ClientApp/build ${ARTIFACTS_DIR}/wwwroot
+  artifacts:
+    paths:
+      - ${ARTIFACTS_DIR}/
+    expire_in: 1 week
+  needs:
+    - test_backend
+    - test_frontend
+
+build_docker_image:
+  stage: publish
+  image: docker:24.0
+  services:
+    - docker:24.0-dind
+  variables:
+    DOCKER_BUILDKIT: 1  # Enable BuildKit
+    DOCKER_TLS_CERTDIR: "/certs"
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build \
+        --build-arg PNPM_REGISTRY=${CUSTOM_REGISTRY} \
+        --build-arg NODE_ENV=production \
+        -t ${DOCKER_IMAGE} .
+    - docker push ${DOCKER_IMAGE}
+  only:
+    - main
+    - master
+    - tags
+  needs: ["publish_combined"]
+
+# ------------------------- DEPLOY STAGE -------------------------
+deploy_production:
+  stage: deploy
+  image: alpine:3.18
+  script:
+    - apk add --no-cache openssh-client rsync
+    - install -m 600 -D /dev/null deploy_key
+    - echo "$DEPLOYMENT_SSH_KEY" > deploy_key
+    - rsync -avz --delete -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
+        ${ARTIFACTS_DIR}/ \
+        ${DEPLOYMENT_USER}@${DEPLOYMENT_SERVER}:${DEPLOYMENT_PATH}
+  environment:
+    name: production
+    url: https://your-production-url.com
+  only:
+    - main
+    - master
+  when: manual
+  needs: ["build_docker_image"]
