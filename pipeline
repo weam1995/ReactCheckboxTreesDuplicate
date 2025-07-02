@@ -1,0 +1,27 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+# Use .NET SDK image
+image: mcr.microsoft.com/dotnet/sdk:8.0
+
+before_script:
+  - echo "Using environment: $ENVIRONMENT"
+  - dotnet --version
+  - dotnet restore
+
+build_app:
+  stage: build
+  script:
+    - dotnet publish -c Release -o out -p:EnvironmentName=$ENVIRONMENT
+
+deploy_app:
+  stage: deploy
+  script:
+    - cd out
+    - echo "Running ASP.NET Core app in $ENVIRONMENT environment"
+    - ASPNETCORE_ENVIRONMENT=$ENVIRONMENT dotnet YourApp.dll
