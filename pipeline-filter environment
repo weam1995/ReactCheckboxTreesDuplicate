@@ -1,0 +1,37 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+  PUBLISH_DIR: "out"
+
+# Use official .NET SDK image
+image: mcr.microsoft.com/dotnet/sdk:8.0
+
+before_script:
+  - echo "Target environment: $ENVIRONMENT"
+  - dotnet --version
+  - dotnet restore
+
+build_app:
+  stage: build
+  script:
+    - dotnet publish -c Release -o $PUBLISH_DIR -p:EnvironmentName=$ENVIRONMENT
+    # Retain only the environment-specific appsettings
+    - |
+      cd $PUBLISH_DIR
+      for f in appsettings.*.json; do
+        if [ "$f" != "appsettings.$ENVIRONMENT.json" ]; then
+          echo "Removing $f"
+          rm "$f"
+        fi
+      done
+
+deploy_app:
+  stage: deploy
+  script:
+    - echo "Deploying ASP.NET Core app for $ENVIRONMENT"
+    - cd $PUBLISH_DIR
+    - ASPNETCORE_ENVIRONMENT=$ENVIRONMENT dotnet YourApp.dll
