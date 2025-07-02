@@ -1,0 +1,14 @@
+ <Target Name="DebugEnsureNodeEnv" BeforeTargets="Build" Condition=" '$(Configuration)' == 'Debug' And !Exists('$(SpaRoot)node_modules') ">
+    <Exec Command="pnpm install --registry $(PnpmRegistry)" WorkingDirectory="$(SpaRoot)" />
+  </Target>
+
+  <Target Name="PublishRunWebpack" AfterTargets="ComputeFilesToPublish">
+    <Exec Command="pnpm install --registry $(PnpmRegistry)" WorkingDirectory="$(SpaRoot)" />
+    <Exec Command="pnpm run build" WorkingDirectory="$(SpaRoot)" />
+    <ItemGroup>
+      <DistFiles Include="$(SpaRoot)build\**" />
+      <ResolvedFileToPublish Include="@(DistFiles->'%(FullPath)')" 
+        RelativePath="%(DistFiles.Identity)" 
+        CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
