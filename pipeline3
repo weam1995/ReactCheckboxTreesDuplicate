@@ -1,0 +1,31 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  PUBLISH_DIR: "out"
+
+# Tell GitLab to use PowerShell on a Windows runner
+default:
+  tags:
+    - windows
+  shell: powershell
+
+build_app:
+  stage: build
+  script:
+    - Write-Host "Target environment: $env:ENVIRONMENT"
+    - dotnet --version
+    - dotnet restore
+    - dotnet publish -c Release -o $env:PUBLISH_DIR -p:EnvironmentName=$env:ENVIRONMENT
+    # Remove all appsettings except the one for the current environment
+    - Set-Location $env:PUBLISH_DIR
+    - Get-ChildItem -Filter "appsettings.*.json" | Where-Object { $_.Name -ne "appsettings.$env:ENVIRONMENT.json" } | Remove-Item -Force
+
+deploy_app:
+  stage: deploy
+  script:
+    - Write-Host "Deploying ASP.NET Core app for $env:ENVIRONMENT"
+    - Set-Location $env:PUBLISH_DIR
+    - $env:ASPNETCORE_ENVIRONMENT = $env:ENVIRONMENT
+    - dotnet YourApp.dll
