@@ -1,0 +1,66 @@
+stages:
+  - setup
+  - build
+
+variables:
+  # Custom pnpm registry (replace with your actual registry)
+  PNPM_REGISTRY: "https://your.custom.registry.com"
+  # NuGet package source (replace with your actual source)
+  NUGET_SOURCE: "https://your.nuget.feed/index.json"
+  # For Windows builds
+  GIT_STRATEGY: clone
+
+before_script:
+  - echo "Starting pipeline on Windows runner"
+
+setup_environment:
+  stage: setup
+  tags:
+    - windows  # Make sure you have Windows runners with this tag
+  script:
+    # Install pnpm
+    - echo "Installing pnpm..."
+    - iwr https://get.pnpm.io/install.ps1 -useb | iex
+    - $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    - pnpm --version
+    
+    # Set up custom pnpm registry
+    - echo "Setting up custom pnpm registry..."
+    - pnpm config set registry $env:PNPM_REGISTRY
+    
+    # Install NuGet CLI if not present (optional)
+    - echo "Checking for NuGet CLI..."
+    - if (-not (Test-Path "$env:ProgramFiles\NuGet\nuget.exe")) {
+        echo "Installing NuGet CLI..."
+        mkdir "$env:ProgramFiles\NuGet" -Force
+        iwr https://dist.nuget.org/win-x86-commandline/latest/nuget.exe -OutFile "$env:ProgramFiles\NuGet\nuget.exe"
+      }
+    - $env:Path += ";$env:ProgramFiles\NuGet"
+    
+    # Add NuGet package source
+    - echo "Adding NuGet package source..."
+    - nuget sources Add -Name "CustomSource" -Source $env:NUGET_SOURCE
+    
+    # Restore NuGet packages (assuming you have a solution file)
+    - echo "Restoring NuGet packages..."
+    - nuget restore "YourSolution.sln"  # Replace with your actual solution file
+    
+    # Install Node.js dependencies with pnpm
+    - echo "Installing Node.js dependencies..."
+    - pnpm install
+    
+    # Verify installations
+    - pnpm --version
+    - nuget help | Select-String -Pattern "NuGet Version" -Context 0,2
+
+build_project:
+  stage: build
+  tags:
+    - windows
+  script:
+    - echo "Building the project..."
+    # Add your build commands here
+    # For example:
+    # - pnpm run build
+    # - msbuild "YourSolution.sln" /p:Configuration=Release
+  needs: ["setup_environment"]
