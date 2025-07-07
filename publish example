@@ -1,0 +1,24 @@
+publish:
+  stage: publish
+  image: mcr.microsoft.com/dotnet/sdk:8.0
+  before_script:
+    # Install Node.js (v20)
+    - apt-get update && apt-get install -y curl
+    - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    - apt-get install -y nodejs
+
+    # Enable and install pnpm using corepack
+    - corepack enable
+    - corepack prepare pnpm@latest --activate
+
+    # Verify installations
+    - node -v
+    - pnpm --version
+
+  script:
+    - dotnet publish MyApp/MyApp.csproj --configuration Release --output output
+
+  artifacts:
+    paths:
+      - output
+    expire_in: 1 week
