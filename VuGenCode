@@ -1,44 +1,25 @@
 Action()
 {
-    // Step 1: Go to Login Page (simulate React redirect)
-    web_url("Login",
-        "URL=https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/authorize?"
-              "client_id={client_id}"
-              "&response_type=code"
-              "&redirect_uri=https://your-react-app.com/auth/callback"
-              "&response_mode=query"
-              "&scope=openid profile api://{api-client-id}/.default"
-              "&code_challenge={code_challenge}"
-              "&code_challenge_method=S256",
-        "Method=GET",
-        LAST);
+    // Step 1: Get Access Token
+    web_add_header("Content-Type", "application/x-www-form-urlencoded");
 
-    // Step 2: Capture Authorization Code from Redirect
-    web_reg_save_param_ex(
-        "ParamName=AuthCode",
-        "LB=code=",
-        "RB=&",
-        LAST);
-
-    // Step 3: Exchange Code for Tokens
     web_custom_request("GetToken",
         "URL=https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token",
         "Method=POST",
-        "Body=grant_type=authorization_code"
-              "&client_id={client_id}"
-              "&code={AuthCode}"
-              "&redirect_uri=https://your-react-app.com/auth/callback"
-              "&code_verifier={code_verifier}",
+        "Body=grant_type=client_credentials"
+            "&client_id={client_id}"
+            "&client_secret={client_secret}"
+            "&scope=api://{api-client-id}/.default",
         LAST);
 
-    // Save access_token
+    // Save access_token from JSON response
     web_reg_save_param_json(
         "ParamName=AccessToken",
         "QueryString=$.access_token",
         "SelectAll=No",
         LAST);
 
-    // Step 4: Call API with Bearer token
+    // Step 2: Call your API with Bearer token
     web_add_header("Authorization", "Bearer {AccessToken}");
     web_url("CallAPI",
         "URL=https://your-api-host.com/api/endpoint",
@@ -47,13 +28,3 @@ Action()
 
     return 0;
 }
-
-
-web_custom_request("GetToken",
-    "URL=https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token",
-    "Method=POST",
-    "Body=grant_type=client_credentials"
-          "&client_id={client_id}"
-          "&client_secret={client_secret}"
-          "&scope=api://{api-client-id}/.default",
-    LAST);
