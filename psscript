@@ -1,0 +1,24 @@
+# Change this to your production URL
+$Url = "https://yourserver.com"
+
+$Protocols = @{
+    "TLS 1.0" = [Net.SecurityProtocolType]::Tls
+    "TLS 1.1" = [Net.SecurityProtocolType]::Tls11
+    "TLS 1.2" = [Net.SecurityProtocolType]::Tls12
+}
+
+# TLS 1.3 exists only in .NET 5+ on Windows Server 2022+ 
+try {
+    $Protocols["TLS 1.3"] = [Net.SecurityProtocolType]::Tls13
+} catch { }
+
+foreach ($p in $Protocols.Keys) {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = $Protocols[$p]
+        $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 10
+        Write-Host "$p ✅ works (Status: $($resp.StatusCode))" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "$p ❌ failed ($($_.Exception.Message))" -ForegroundColor Red
+    }
+}
