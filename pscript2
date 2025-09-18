@@ -1,1 +1,33 @@
 
+# ==============================
+# TLS Test Script for Vault
+# ==============================
+
+# Change this to your Vault server hostname
+$VaultHost = "vault.example.com"
+$VaultPort = 443
+
+$Protocols = @(
+    [System.Security.Authentication.SslProtocols]::Tls,    # TLS 1.0
+    [System.Security.Authentication.SslProtocols]::Tls11,  # TLS 1.1
+    [System.Security.Authentication.SslProtocols]::Tls12,  # TLS 1.2
+    [System.Security.Authentication.SslProtocols]::Tls13   # TLS 1.3 (if supported on this system)
+)
+
+foreach ($proto in $Protocols) {
+    try {
+        $tcp = New-Object System.Net.Sockets.TcpClient($VaultHost, $VaultPort)
+        $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false,
+            { param($sender,$certificate,$chain,$errors) $true })
+
+        $ssl.AuthenticateAsClient($VaultHost, $null, $proto, $false)
+
+        Write-Host "$proto ✅ TLS handshake succeeded (negotiated: $($ssl.SslProtocol))" -ForegroundColor Green
+
+        $ssl.Close()
+        $tcp.Close()
+    }
+    catch {
+        Write-Host "$proto ❌ TLS handshake failed ($($_.Exception.Message))" -ForegroundColor Red
+    }
+}
